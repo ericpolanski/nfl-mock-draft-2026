@@ -33,6 +33,7 @@ const DraftRoom = () => {
     currentRound,
     pickInRound,
     userTeamId,
+    startDraft,
     makePick,
     simulatePicks,
     resetDraft,
@@ -58,6 +59,11 @@ const DraftRoom = () => {
     } catch (error) {
       console.error('Error making pick:', error);
     }
+  };
+
+  // Handle start draft button click
+  const handleStartDraft = async () => {
+    await startDraft();
   };
 
   // Handle simulate forward
@@ -148,9 +154,35 @@ const DraftRoom = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
-        <div className="grid grid-cols-12 gap-4">
-          {/* Left Column - On The Clock & Controls */}
-          <div className="col-span-12 lg:col-span-3 space-y-4">
+        {/* Start Draft Button - shown before draft starts */}
+        {!isStarted && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-white mb-2">Ready to Draft!</h2>
+              <p className="text-gray-400">Click the button below to start the AI draft simulation</p>
+            </div>
+            <button
+              onClick={handleStartDraft}
+              disabled={loading}
+              className={`
+                px-12 py-4 bg-gradient-to-r from-cyan-500 to-blue-600
+                text-white text-xl font-bold rounded-xl
+                hover:from-cyan-400 hover:to-blue-500
+                disabled:opacity-50 disabled:cursor-not-allowed
+                transition-all transform hover:scale-105
+                shadow-lg shadow-cyan-500/25
+              `}
+            >
+              {loading ? 'Starting...' : 'Start Draft'}
+            </button>
+          </div>
+        )}
+
+        {/* Draft Content - shown after draft starts */}
+        {isStarted && (
+          <div className="grid grid-cols-12 gap-4">
+            {/* Left Column - On The Clock & Controls */}
+            <div className="col-span-12 lg:col-span-3 space-y-4">
             <OnTheClock
               team={currentTeam}
               pickNumber={currentPick}
@@ -212,6 +244,7 @@ const DraftRoom = () => {
             />
           </div>
         </div>
+        )}
 
         {/* Team Needs Tracker - Below main content */}
         <div className="mt-4">
@@ -239,12 +272,13 @@ const DraftRoom = () => {
         picks={picks}
       />
 
-      <DraftRecap
-        picks={picks}
-        userTeamId={teamId}
-        isOpen={showRecap}
-        onClose={() => setShowRecap(false)}
-      />
+      {showRecap && (
+        <DraftRecap
+          picks={picks}
+          userTeamId={teamId}
+          onClose={() => setShowRecap(false)}
+        />
+      )}
     </div>
   );
 };

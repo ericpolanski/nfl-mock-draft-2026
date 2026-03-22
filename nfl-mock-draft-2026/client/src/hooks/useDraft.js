@@ -17,62 +17,58 @@ export const useDraft = (userTeamId) => {
     error: null,
   });
 
-  // Initialize draft when userTeamId is provided
-  useEffect(() => {
-    if (!userTeamId) return;
+  // Start draft function - called by user clicking Start Draft button
+  const startDraft = useCallback(async () => {
+    if (!userTeamId || draftState.isStarted) return;
 
-    const initDraft = async () => {
-      setDraftState(prev => ({ ...prev, loading: true, error: null }));
+    setDraftState(prev => ({ ...prev, loading: true, error: null }));
 
-      try {
-        // Call backend to start draft
-        const response = await fetch(`${API_BASE}/draft/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ teamId: userTeamId }),
-        });
+    try {
+      // Call backend to start draft
+      const response = await fetch(`${API_BASE}/draft/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: userTeamId }),
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to start draft');
-        }
-
-        const draftData = await response.json();
-
-        // Transform backend data to frontend format
-        const transformedPicks = (draftData.picks || []).map(pick => ({
-          position: pick.overallPick,
-          round: pick.round,
-          pick: pick.pick,
-          teamId: pick.teamId,
-          prospectId: pick.prospectId,
-          prospect: draftData.availableProspects?.find(p => p.id === pick.prospectId),
-        }));
-
-        setDraftState({
-          currentPick: draftData.currentPickIndex + 1,
-          picks: transformedPicks,
-          availableProspects: draftData.availableProspects || [],
-          userTeamId: userTeamId,
-          isStarted: true,
-          isComplete: draftData.isDraftComplete,
-          loading: false,
-          error: null,
-        });
-      } catch (error) {
-        console.error('Error initializing draft:', error);
-        // Fall back to local mock data if backend unavailable
-        setDraftState(prev => ({
-          ...prev,
-          userTeamId,
-          isStarted: true,
-          loading: false,
-          error: 'Using offline mode - backend unavailable',
-        }));
+      if (!response.ok) {
+        throw new Error('Failed to start draft');
       }
-    };
 
-    initDraft();
-  }, [userTeamId]);
+      const draftData = await response.json();
+
+      // Transform backend data to frontend format
+      const transformedPicks = (draftData.picks || []).map(pick => ({
+        position: pick.overallPick,
+        round: pick.round,
+        pick: pick.pick,
+        teamId: pick.teamId,
+        prospectId: pick.prospectId,
+        prospect: draftData.availableProspects?.find(p => p.id === pick.prospectId),
+      }));
+
+      setDraftState({
+        currentPick: draftData.currentPickIndex + 1,
+        picks: transformedPicks,
+        availableProspects: draftData.availableProspects || [],
+        userTeamId: userTeamId,
+        isStarted: true,
+        isComplete: draftData.isDraftComplete,
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      console.error('Error starting draft:', error);
+      // Fall back to local mock data if backend unavailable
+      setDraftState(prev => ({
+        ...prev,
+        userTeamId,
+        isStarted: true,
+        loading: false,
+        error: 'Using offline mode - backend unavailable',
+      }));
+    }
+  }, [userTeamId, draftState.isStarted]);
 
   // Get current pick data
   const currentPickData = getPickAtPosition(draftState.currentPick);
@@ -224,6 +220,7 @@ export const useDraft = (userTeamId) => {
     isUserTurn,
     currentRound,
     pickInRound,
+    startDraft,
     makePick,
     simulatePicks,
     resetDraft,
