@@ -71,6 +71,17 @@ export const draftOrder = [
   { round: 2, pick: 32, teamId: 'dal', position: 64 },
 ];
 
+// Temporary teams array for draft order generation
+const teams = [
+  { id: 'ari' }, { id: 'atl' }, { id: 'bal' }, { id: 'buf' }, { id: 'car' },
+  { id: 'chi' }, { id: 'cin' }, { id: 'cle' }, { id: 'dal' }, { id: 'den' },
+  { id: 'det' }, { id: 'gb' }, { id: 'hou' }, { id: 'ind' }, { id: 'jax' },
+  { id: 'kc' }, { id: 'lv' }, { id: 'lac' }, { id: 'lar' }, { id: 'mia' },
+  { id: 'min' }, { id: 'ne' }, { id: 'no' }, { id: 'nyg' }, { id: 'nyj' },
+  { id: 'phi' }, { id: 'pit' }, { id: 'sf' }, { id: 'sea' }, { id: 'tb' },
+  { id: 'ten' }, { id: 'wsh' }
+];
+
 // Generate full draft order (simplified - rounds 3-7)
 for (let round = 3; round <= 7; round++) {
   const roundTeams = [...teams].sort(() => Math.random() - 0.5);
@@ -83,17 +94,6 @@ for (let round = 3; round <= 7; round++) {
     });
   });
 }
-
-// Temporary teams array for draft order generation
-const teams = [
-  { id: 'ari' }, { id: 'atl' }, { id: 'bal' }, { id: 'buf' }, { id: 'car' },
-  { id: 'chi' }, { id: 'cin' }, { id: 'cle' }, { id: 'dal' }, { id: 'den' },
-  { id: 'det' }, { id: 'gb' }, { id: 'hou' }, { id: 'ind' }, { id: 'jax' },
-  { id: 'kc' }, { id: 'lv' }, { id: 'lac' }, { id: 'lar' }, { id: 'mia' },
-  { id: 'min' }, { id: 'ne' }, { id: 'no' }, { id: 'nyg' }, { id: 'nyj' },
-  { id: 'phi' }, { id: 'pit' }, { id: 'sf' }, { id: 'sea' }, { id: 'tb' },
-  { id: 'ten' }, { id: 'wsh' }
-];
 
 export const getPickAtPosition = (position) => draftOrder.find(p => p.position === position);
 export const getTeamNextPick = (teamId) => draftOrder.find(p => p.teamId === teamId && !p.playerId);

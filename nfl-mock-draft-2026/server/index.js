@@ -381,6 +381,64 @@ function getDraftStatus() {
   };
 }
 
+// GET /api/draft/auto - Start auto-draft mode
+app.get('/api/draft/auto', (req, res) => {
+  if (!draftState.isActive) {
+    return res.status(400).json({ error: 'Draft is not active' });
+  }
+
+  // Return auto mode config - frontend will handle the timing
+  res.json({
+    mode: 'auto',
+    currentPick: draftState.currentPickIndex + 1,
+    delay: 750
+  });
+});
+
+// POST /api/draft/auto - Execute auto pick (called by frontend with timing)
+app.post('/api/draft/auto', (req, res) => {
+  if (!draftState.isActive) {
+    return res.status(400).json({ error: 'Draft is not active' });
+  }
+
+  if (draftState.currentPickIndex >= draftOrder.length) {
+    return res.json({
+      isComplete: true,
+      message: 'Draft is complete',
+      picks: draftState.picks
+    });
+  }
+
+  const currentPick = draftOrder[draftState.currentPickIndex];
+
+  // If it's user's turn, don't auto-pick - return user turn status
+  if (currentPick.teamId === draftState.userTeamId) {
+    return res.json({
+      isUserTurn: true,
+      message: 'User turn',
+      currentPick: currentPick.overallPick
+    });
+  }
+
+  // Make AI pick
+  const bestPick = makeAIPick(currentPick);
+  makePick(currentPick, bestPick);
+
+  res.json({
+    mode: 'auto',
+    pick: {
+      round: currentPick.round,
+      pick: currentPick.pick,
+      overallPick: currentPick.overallPick,
+      teamId: currentPick.teamId,
+      prospect: bestPick
+    },
+    nextPick: draftState.currentPickIndex + 1,
+    totalPicks: draftOrder.length,
+    isComplete: draftState.currentPickIndex >= draftOrder.length
+  });
+});
+
 const PORT = 4100;
 app.listen(PORT, () => {
   console.log(`NFL Mock Draft Server running on port ${PORT}`);
