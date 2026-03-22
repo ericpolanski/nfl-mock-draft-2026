@@ -9,6 +9,7 @@ import {
   DraftControls,
   TradeModal,
   DraftRecap,
+  DraftTicker,
 } from '../components';
 import { useDraft } from '../hooks/useDraft';
 import { teams, getPickAtPosition } from '../data';
@@ -114,14 +115,14 @@ const DraftRoom = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-[#0f172a]">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
+      <header className="bg-[#1e293b] border-b border-slate-700 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+              className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -131,13 +132,13 @@ const DraftRoom = () => {
 
             <div className="h-6 w-px bg-slate-700"></div>
 
-            <h1 className="text-xl font-bold text-white">
+            <h1 className="text-xl font-bold text-white font-['Oswald']">
               {userTeam?.name || 'Draft Room'}
             </h1>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-slate-400">
               Pick {currentPick} of 224
             </div>
             {isComplete && (
@@ -154,6 +155,16 @@ const DraftRoom = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
+        {/* Draft Ticker - shown after draft starts */}
+        {isStarted && !isComplete && (
+          <div className="mb-4">
+            <DraftTicker
+              picks={picks}
+              currentPick={currentPick}
+            />
+          </div>
+        )}
+
         {/* Start Draft Button - shown before draft starts */}
         {!isStarted && (
           <div className="flex flex-col items-center justify-center py-20">
@@ -190,6 +201,7 @@ const DraftRoom = () => {
               pickInRound={pickInRound}
               isUserTurn={isUserTurn}
               userTeamName={userTeam?.name}
+              teamNeeds={currentTeam?.needs || {}}
             />
 
             <DraftControls

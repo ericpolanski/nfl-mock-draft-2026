@@ -213,7 +213,7 @@ export const useDraft = (userTeamId) => {
     id: draftStatus.currentPick.teamId,
     name: draftStatus.currentPick.teamName,
     abbreviation: draftStatus.currentPick.teamAbbreviation,
-    primaryColor: teams.find(t => t.id === draftStatus.currentPick.teamId)?.primaryColor || '#374151',
+    primaryColor: teams.find(t => t.id === draftStatus.currentPick.teamId)?.primaryColor || '#334155',
   } : currentTeam;
 
   return {
