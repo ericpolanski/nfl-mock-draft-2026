@@ -17,14 +17,18 @@ export const useDraft = (userTeamId) => {
     error: null,
   });
 
-  // State for draft status polling (must be at top level with other hooks)
+  // State for draft status polling
   const [draftStatus, setDraftStatus] = useState(null);
 
   // Start draft function - called by user clicking Start Draft button
+  // Note: draftState.isStarted NOT in deps - we check via the setter callback pattern instead
   const startDraft = useCallback(async () => {
-    if (!userTeamId || draftState.isStarted) return;
+    if (!userTeamId) return;
 
-    setDraftState(prev => ({ ...prev, loading: true, error: null }));
+    setDraftState(prev => {
+      if (prev.isStarted) return prev; // Prevent double-start
+      return { ...prev, loading: true, error: null };
+    });
 
     try {
       // Call backend to start draft
@@ -71,13 +75,7 @@ export const useDraft = (userTeamId) => {
         error: 'Using offline mode - backend unavailable',
       }));
     }
-  }, [userTeamId, draftState.isStarted]);
-
-  // Get current pick data
-  const currentPickData = getPickAtPosition(draftState.currentPick);
-  const currentTeam = currentPickData ? teams.find(t => t.id === currentPickData?.teamId) : null;
-
-  // Determine if it's user's turn by checking draft status
+  }, [userTeamId]);
 
   useEffect(() => {
     if (!draftState.isStarted) return;
@@ -98,10 +96,6 @@ export const useDraft = (userTeamId) => {
     const interval = setInterval(fetchDraftStatus, 5000);
     return () => clearInterval(interval);
   }, [draftState.isStarted, draftState.currentPick]);
-
-  const isUserTurn = draftStatus?.currentPick?.isUserTurn || false;
-  const currentRound = Math.ceil(draftState.currentPick / 32);
-  const pickInRound = ((draftState.currentPick - 1) % 32) + 1;
 
   // Make a pick
   const makePick = useCallback(async (prospectId) => {
@@ -206,6 +200,13 @@ export const useDraft = (userTeamId) => {
     });
     setDraftStatus(null);
   }, [userTeamId]);
+
+  // Computed values - must come after all hooks (React hooks rule)
+  const currentPickData = getPickAtPosition(draftState.currentPick);
+  const currentTeam = currentPickData ? teams.find(t => t.id === currentPickData?.teamId) : null;
+  const isUserTurn = draftStatus?.currentPick?.isUserTurn || false;
+  const currentRound = Math.ceil(draftState.currentPick / 32);
+  const pickInRound = ((draftState.currentPick - 1) % 32) + 1;
 
   // Get the current team from draft status if available
   const currentTeamFromStatus = draftStatus?.currentPick ? {
