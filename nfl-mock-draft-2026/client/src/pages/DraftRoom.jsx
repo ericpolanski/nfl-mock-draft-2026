@@ -1,0 +1,252 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  TeamSelector,
+  DraftBoard,
+  OnTheClock,
+  PlayerPool,
+  TeamNeedsTracker,
+  DraftControls,
+  TradeModal,
+  DraftRecap,
+} from '../components';
+import { useDraft } from '../hooks/useDraft';
+import { teams, getPickAtPosition } from '../data';
+
+const DraftRoom = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const teamId = searchParams.get('team');
+
+  const [showTradeModal, setShowTradeModal] = useState(false);
+  const [showRecap, setShowRecap] = useState(false);
+
+  const {
+    picks,
+    currentPick,
+    availableProspects,
+    isStarted,
+    isComplete,
+    loading,
+    isUserTurn,
+    currentTeam,
+    currentRound,
+    pickInRound,
+    userTeamId,
+    makePick,
+    simulatePicks,
+    resetDraft,
+  } = useDraft(teamId);
+
+  // Get user's team needs
+  const userTeam = useMemo(() => {
+    return teams.find(t => t.id === teamId);
+  }, [teamId]);
+
+  const userTeamNeeds = useMemo(() => {
+    if (!userTeam?.needs) return [];
+    return Object.entries(userTeam.needs)
+      .sort(([, a], [, b]) => a - b)
+      .map(([pos]) => pos);
+  }, [userTeam]);
+
+  // Handle making a pick
+  const handleMakePick = async (prospect) => {
+    if (!isUserTurn) return;
+    try {
+      await makePick(prospect.id);
+    } catch (error) {
+      console.error('Error making pick:', error);
+    }
+  };
+
+  // Handle simulate forward
+  const handleSimForward = async () => {
+    if (isUserTurn) return;
+
+    // Sim until user's next pick or end of draft
+    let picksToSim = 10;
+    for (let i = 0; i < 10 && currentPick + i < 224; i++) {
+      const pickData = getPickAtPosition(currentPick + i);
+      if (pickData?.teamId === teamId) {
+        picksToSim = i;
+        break;
+      }
+    }
+
+    await simulatePicks(picksToSim);
+  };
+
+  // Handle trade proposal
+  const handleProposeTrade = () => {
+    setShowTradeModal(true);
+  };
+
+  // Handle reset
+  const handleReset = () => {
+    if (window.confirm('Are you sure you want to reset the draft?')) {
+      resetDraft();
+    }
+  };
+
+  // Show recap when draft is complete
+  useEffect(() => {
+    if (isComplete) {
+      setShowRecap(true);
+    }
+  }, [isComplete]);
+
+  // Redirect to home if no team selected
+  useEffect(() => {
+    if (!teamId) {
+      navigate('/');
+    }
+  }, [teamId, navigate]);
+
+  if (!teamId) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900">
+      {/* Header */}
+      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span className="hidden sm:inline">Back</span>
+            </button>
+
+            <div className="h-6 w-px bg-slate-700"></div>
+
+            <h1 className="text-xl font-bold text-white">
+              {userTeam?.name || 'Draft Room'}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-gray-400">
+              Pick {currentPick} of 224
+            </div>
+            {isComplete && (
+              <button
+                onClick={() => setShowRecap(true)}
+                className="px-4 py-2 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-400 transition-colors"
+              >
+                View Recap
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto p-4">
+        <div className="grid grid-cols-12 gap-4">
+          {/* Left Column - On The Clock & Controls */}
+          <div className="col-span-12 lg:col-span-3 space-y-4">
+            <OnTheClock
+              team={currentTeam}
+              pickNumber={currentPick}
+              round={currentRound}
+              pickInRound={pickInRound}
+              isUserTurn={isUserTurn}
+              userTeamName={userTeam?.name}
+            />
+
+            <DraftControls
+              isUserTurn={isUserTurn}
+              isComplete={isComplete}
+              onSimForward={handleSimForward}
+              onProposeTrade={handleProposeTrade}
+              onReset={handleReset}
+              loading={loading}
+              picks={picks}
+            />
+
+            {/* User Team Needs */}
+            <div className="card p-4">
+              <h3 className="text-sm font-semibold text-white mb-3">Your Team Needs</h3>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(userTeam?.needs || {}).map(([pos, priority]) => (
+                  <span
+                    key={pos}
+                    className={`
+                      px-3 py-1 rounded-full text-xs font-medium
+                      ${priority === 1 ? 'bg-red-500/20 text-red-400' :
+                        priority === 2 ? 'bg-orange-500/20 text-orange-400' :
+                        priority === 3 ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-slate-700 text-gray-400'
+                      }
+                    `}
+                  >
+                    {pos}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Center Column - Draft Board */}
+          <div className="col-span-12 lg:col-span-5 h-[calc(100vh-200px)]">
+            <DraftBoard
+              picks={picks}
+              currentPick={currentPick}
+              userTeamId={teamId}
+            />
+          </div>
+
+          {/* Right Column - Player Pool */}
+          <div className="col-span-12 lg:col-span-4 h-[calc(100vh-200px)]">
+            <PlayerPool
+              prospects={availableProspects}
+              onSelectProspect={handleMakePick}
+              isUserTurn={isUserTurn}
+              userTeamNeeds={userTeamNeeds}
+            />
+          </div>
+        </div>
+
+        {/* Team Needs Tracker - Below main content */}
+        <div className="mt-4">
+          <TeamNeedsTracker
+            teams={teams}
+            picks={picks}
+            userTeamId={teamId}
+          />
+        </div>
+      </main>
+
+      {/* Modals */}
+      <TradeModal
+        isOpen={showTradeModal}
+        onClose={() => setShowTradeModal(false)}
+        onSubmit={async (toTeamId, picksToGive, picksToGet) => {
+          // Mock trade - return result
+          const accepted = Math.random() > 0.3;
+          return {
+            accepted,
+            message: accepted ? 'Trade accepted!' : 'Trade rejected - value not met',
+          };
+        }}
+        currentPick={currentPick}
+        picks={picks}
+      />
+
+      <DraftRecap
+        picks={picks}
+        userTeamId={teamId}
+        isOpen={showRecap}
+        onClose={() => setShowRecap(false)}
+      />
+    </div>
+  );
+};
+
+export default DraftRoom;
