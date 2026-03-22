@@ -17,6 +17,9 @@ export const useDraft = (userTeamId) => {
     error: null,
   });
 
+  // State for draft status polling (must be at top level with other hooks)
+  const [draftStatus, setDraftStatus] = useState(null);
+
   // Start draft function - called by user clicking Start Draft button
   const startDraft = useCallback(async () => {
     if (!userTeamId || draftState.isStarted) return;
@@ -75,7 +78,6 @@ export const useDraft = (userTeamId) => {
   const currentTeam = currentPickData ? teams.find(t => t.id === currentPickData?.teamId) : null;
 
   // Determine if it's user's turn by checking draft status
-  const [draftStatus, setDraftStatus] = useState(null);
 
   useEffect(() => {
     if (!draftState.isStarted) return;
