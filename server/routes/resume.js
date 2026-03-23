@@ -2,6 +2,7 @@ import express from 'express';
 import { getProfile } from '../lib/profile.js';
 import db from '../db.js';
 import * as llm from '../services/llm.js';
+import * as resumeTailor from '../services/resume-tailor.js';
 
 const router = express.Router();
 
@@ -17,54 +18,39 @@ router.get('/base', (req, res) => {
 // POST /api/resume/tailor/:jobId - Generate tailoring suggestions
 router.post('/tailor/:jobId', async (req, res) => {
   try {
-    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.jobId);
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
-
-    const profile = getProfile();
-    if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
-    }
-
-    const suggestions = await llm.generateResumeSuggestions(profile, job.description || '');
-
+    const suggestions = await resumeTailor.getTailoringSuggestions(req.params.jobId);
     res.json(suggestions);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST /api/resume/generate/:jobId - Generate DOCX+PDF (stub)
+// POST /api/resume/generate/:jobId - Generate DOCX+PDF with tailored content
 router.post('/generate/:jobId', async (req, res) => {
-  const { suggestions, tailored_sections } = req.body;
+  const { suggestions } = req.body;
 
   try {
-    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.jobId);
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
+    if (!suggestions || !Array.isArray(suggestions)) {
+      return res.status(400).json({ error: 'Suggestions array required' });
     }
 
-    const now = new Date().toISOString();
-    const fileName = `Eric Polanski Resume - ${job.company_name}.pdf`;
-
-    const result = db.prepare(`
-      INSERT INTO resume_versions (job_id, suggestions, tailored_sections, file_name, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(req.params.jobId, JSON.stringify(suggestions), JSON.stringify(tailored_sections), fileName, now);
+    const result = await resumeTailor.generateTailoredResume(req.params.jobId, suggestions);
 
     res.json({
-      id: result.lastInsertRowid,
-      job_id: req.params.jobId,
-      file_name: fileName,
-      created_at: now
+      id: result.id,
+      job_id: result.job_id,
+      file_name: result.file_name,
+      docx_path: result.docx_path,
+      pdf_path: result.pdf_path,
+      download_url: result.pdf_path ? `/generated/resumes/${result.file_name}` : null,
+      created_at: result.created_at
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/resume/download/:id - Download (stub)
+// GET /api/resume/download/:id - Download resume file
 router.get('/download/:id', (req, res) => {
   try {
     const resume = db.prepare('SELECT * FROM resume_versions WHERE id = ?').get(req.params.id);
@@ -72,12 +58,47 @@ router.get('/download/:id', (req, res) => {
       return res.status(404).json({ error: 'Resume not found' });
     }
 
-    // Stub - would serve actual file in production
-    res.json({
-      id: resume.id,
-      file_name: resume.file_name,
-      download_url: `/generated/resumes/${resume.file_name}`
-    });
+    // Determine which file to serve (prefer PDF over DOCX)
+    const filePath = resume.pdf_path || resume.docx_path;
+    if (!filePath) {
+      return res.status(404).json({ error: 'No file generated yet' });
+    }
+
+    const fileName = resume.file_name || resume.pdf_path?.split('/').pop() || 'resume.pdf';
+    res.download(filePath, fileName);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/resume/versions - List all resume versions
+router.get('/versions', (req, res) => {
+  try {
+    const jobId = req.query.jobId;
+    let query = 'SELECT * FROM resume_versions';
+    const params = [];
+
+    if (jobId) {
+      query += ' WHERE job_id = ?';
+      params.push(jobId);
+    }
+    query += ' ORDER BY created_at DESC';
+
+    const versions = db.prepare(query).all(...params);
+    res.json(versions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/resume/version/:id - Get specific resume version
+router.get('/version/:id', (req, res) => {
+  try {
+    const resume = db.prepare('SELECT * FROM resume_versions WHERE id = ?').get(req.params.id);
+    if (!resume) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
+    res.json(resume);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

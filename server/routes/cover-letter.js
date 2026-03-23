@@ -7,6 +7,8 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, readFileSync } from 'fs';
 
+const router = express.Router();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const GENERATED_DIR = join(__dirname, '..', '..', 'generated', 'cover-letters');

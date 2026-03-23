@@ -23,6 +23,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve generated files (resumes, cover letters)
+app.use('/generated', express.static(join(__dirname, '..', 'generated')));
+
 // API Routes
 app.use('/api/jobs', jobsRouter);
 app.use('/api/applications', applicationsRouter);

@@ -7,7 +7,15 @@ const router = express.Router();
 router.get('/', (req, res) => {
   const { source, minScore, location, search, sort, limit = 50, offset = 0 } = req.query;
 
-  let query = 'SELECT * FROM jobs WHERE is_active = 1';
+  let query = `
+    SELECT j.*,
+      a.id as application_id,
+      a.status as application_status,
+      a.created_at as application_created_at
+    FROM jobs j
+    LEFT JOIN applications a ON j.id = a.job_id
+    WHERE j.is_active = 1
+  `;
   const params = [];
 
   if (source) {
@@ -59,7 +67,17 @@ router.get('/', (req, res) => {
 // GET /api/jobs/:id - Single job
 router.get('/:id', (req, res) => {
   try {
-    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
+    const job = db.prepare(`
+      SELECT j.*,
+        a.id as application_id,
+        a.status as application_status,
+        a.applied_date,
+        a.notes as application_notes,
+        a.created_at as application_created_at
+      FROM jobs j
+      LEFT JOIN applications a ON j.id = a.job_id
+      WHERE j.id = ?
+    `).get(req.params.id);
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
     }
