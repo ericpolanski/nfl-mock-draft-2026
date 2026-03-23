@@ -70,6 +70,31 @@ function hashUrl(url) {
   return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 
+function decodeHtmlEntities(text) {
+  const entities = {
+    '&nbsp;': ' ', '&nbsp': ' ', '&#160;': ' ', '&#xA0;': ' ', '\u00A0': ' ',
+    '&amp;': '&', '&#38;': '&',
+    '&lt;': '<', '&#60;': '<', '&#x3C;': '<',
+    '&gt;': '>', '&#62;': '>', '&#x3E;': '>',
+    '&quot;': '"', '&#34;': '"', '&#x22;': '"',
+    '&apos;': "'", '&#39;': "'", '&#x27;': "'",
+    '&mdash;': '\u2014', '&#8211;': '\u2013', '&ndash;': '\u2013',
+    '&lsquo;': '\u2018', '&rsquo;': '\u2019', '&ldquo;': '\u201C', '&rdquo;': '\u201D',
+    '&hellip;': '\u2026', '&#8230;': '\u2026',
+    '&copy;': '\u00A9', '&reg;': '\u00AE', '&trade;': '\u2122',
+    '&deg;': '\u00B0', '&plusmn;': '\u00B1', '&times;': '\u00D7', '&divide;': '\u00F7',
+    '&cent;': '\u00A2', '&pound;': '\u00A3', '&euro;': '\u20AC', '&yen;': '\u00A5',
+  };
+  // First handle numeric/hex entities
+  let result = text.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  // Then handle named entities (case-insensitive)
+  for (const [entity, char] of Object.entries(entities)) {
+    result = result.replace(new RegExp(entity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), char);
+  }
+  return result;
+}
+
 function parseSalary(text) {
   if (!text) return { min: null, max: null, text: null };
   // Handle "$120K - $180K", "$80,000 - $120,000", "120000", etc.
@@ -111,6 +136,34 @@ function jobMatchesTarget(job) {
   // Title should match target roles
   const roleMatch = ROLES.some(r => title.includes(r.toLowerCase()));
   return roleMatch;
+}
+
+function stripHtmlWithNewlines(html) {
+  if (!html) return '';
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+    .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\/(p|div|h[1-6]|li|tr|article|section)>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 // ─── LinkedIn Scraper ───────────────────────────────────────────────────────
@@ -327,20 +380,140 @@ async function scrapeJobDetail(job) {
       detail = {};
     }
 
-    const salary = parseSalary(detail.salary_text || job.salary_text);
+    // Bug 4: Extract salary from JSON-LD structured data and data-salary attributes
+    const rawHtml = result.result.content || '';
+    let salaryMin = null;
+    let salaryMax = null;
+    let salaryText = detail.salary_text || job.salary_text;
+
+    // Try JSON-LD first
+    const jsonLdMatch = rawHtml.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (jsonLdMatch) {
+      try {
+        const jsonLd = JSON.parse(jsonLdMatch[1]);
+        if (jsonLd.baseSalary) {
+          const bs = jsonLd.baseSalary;
+          if (bs.minValue !== undefined) salaryMin = Math.round(bs.minValue);
+          if (bs.maxValue !== undefined) salaryMax = Math.round(bs.maxValue);
+          if (bs.currency) salaryText = `${bs.currency} ${salaryMin}-${salaryMax}`;
+        }
+      } catch {}
+    }
+
+    // Try data-salary attribute
+    const dataSalaryMatch = rawHtml.match(/data-(?:salary|compensation|pay)=["']([^"']+)["']/i);
+    if (dataSalaryMatch && dataSalaryMatch[1]) {
+      const p = parseSalary(dataSalaryMatch[1]);
+      if (p.min !== null) salaryMin = p.min;
+      if (p.max !== null) salaryMax = p.max;
+      if (p.text) salaryText = p.text;
+    }
+
+    const salary = parseSalary(salaryText);
+    salaryMin = salaryMin ?? salary.min;
+    salaryMax = salaryMax ?? salary.max;
+
+    // Bug 1 & 2: Description capture with 20000 char limit, stop at apply/footer
+    let description = detail.description || '';
+    if (rawHtml && !description) {
+      // Bug 2: HTML-based description capture with 20000 char limit
+      const descPatterns = [
+        /<div[^>]+class=["'][^"']*(?:description|job-description|jobdetail|jd|job-content|job-body)[^"']*["'][^>]*>([\s\S]{500,20000}?)(?=(?:<div[^>]+class=["'][^"']*(?:apply|application|submit)[^"']*["']|<footer|<\/article>))/i,
+        /<article[^>]*>([\s\S]{500,20000}?)<(?:aside|footer|nav|div[^>]+class=["'][^"']*(?:apply|application)[^"']*["'])/i,
+      ];
+      for (const pattern of descPatterns) {
+        const match = rawHtml.match(pattern);
+        if (match && match[1]) {
+          description = match[1];
+          break;
+        }
+      }
+    }
+
+    // Bug 1: Location fallback to description body text
+    let extractedLocation = detail.location || job.location;
+    if (!extractedLocation && description) {
+      const bodyLocationMatch = description.match(/(?:based\s+(?:in|near)|location[:]\s*|role\s+is\s+(?:in|near))\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s+\d{5})?)/i);
+      if (bodyLocationMatch && bodyLocationMatch[1]) {
+        extractedLocation = bodyLocationMatch[1].trim();
+      }
+    }
+
+    // Bug 7: Preserve paragraph breaks
+    if (description) {
+      description = stripHtmlWithNewlines(description);
+    }
+
+    // Bug 3: Requirements from clean HTML
+    let requirements = job.requirements;
+    if (detail.requirements && Array.isArray(detail.requirements)) {
+      requirements = JSON.stringify(detail.requirements);
+    } else if (rawHtml) {
+      // Extract requirements from clean HTML
+      const cleanHtml = rawHtml
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+        .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+        .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '');
+      const reqPatterns = [
+        /<li[^>]*>([\s\S]{10,300}?)<\/li>/gi,
+        /<p[^>]*>([\s\S]{20,500}?)<\/p>/gi,
+      ];
+      const reqs = [];
+      const seenReqs = new Set();
+      for (const pattern of reqPatterns) {
+        const matches = [...cleanHtml.matchAll(pattern)];
+        for (const match of matches) {
+          const text = stripHtmlWithNewlines(match[1]).trim();
+          if (text.length > 15 && text.length < 300 &&
+              !seenReqs.has(text) &&
+              !text.match(/^(Job|Apply|Career|Amazon|Google|Microsoft|Company|Job categories|My career|Sign\s+in|Account|Categories|Navigation|Browse)/i) &&
+              !text.includes('http') && !text.includes('javascript')) {
+            seenReqs.add(text);
+            reqs.push(text);
+          }
+        }
+      }
+      if (reqs.length > 0) {
+        requirements = JSON.stringify(reqs);
+      }
+    }
+
+    // Bug 6: Benefits extracted as structured field (=== BENEFITS === section)
+    let benefitsSection = '';
+    if (rawHtml) {
+      const benefitsPatterns = [
+        /<li[^>]+class=["'][^"']*(?:benefit|perk)[^"']*["'][^>]*>([\s\S]{10,500}?)<\/li>/gi,
+        /<(?:ul|ol)[^>]*class=["'][^"']*(?:benefits|perks|what-we-offer)[^"']*["'][^>]*>([\s\S]{100,5000}?)<\/(?:ul|ol)>/gi,
+      ];
+      const benefits = [];
+      for (const pattern of benefitsPatterns) {
+        const matches = [...rawHtml.matchAll(pattern)];
+        for (const match of matches) {
+          const text = stripHtmlWithNewlines(match[1]).trim();
+          if (text.length > 5 && text.length < 300 && !benefits.includes(text)) {
+            benefits.push(text);
+          }
+        }
+      }
+      if (benefits.length > 0) {
+        benefitsSection = '\n\n=== BENEFITS ===\n' + benefits.map(b => '- ' + b).join('\n');
+      }
+    }
+
+    const finalDescription = description + benefitsSection;
 
     return {
       ...job,
       title: detail.title || job.title,
       company_name: detail.company_name || job.company_name,
-      location: detail.location || job.location,
+      location: extractedLocation,
       salary_text: salary.text,
-      salary_min: salary.min,
-      salary_max: salary.max,
-      description: detail.description || '',
-      requirements: Array.isArray(detail.requirements)
-        ? JSON.stringify(detail.requirements)
-        : job.requirements,
+      salary_min: salaryMin,
+      salary_max: salaryMax,
+      description: finalDescription,
+      requirements: requirements,
       source_url: detail.apply_url || job.source_url
     };
   } catch (e) {
