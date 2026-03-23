@@ -1,5 +1,6 @@
 import express from 'express';
 import db from '../db.js';
+import { scoreJob, getFitScore } from '../services/fit-scorer.js';
 
 const router = express.Router();
 
@@ -125,11 +126,13 @@ router.post('/:id/score', async (req, res) => {
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    // For now, just return the existing score - LLM scoring would be called here
+    // Score the job using heuristic + LLM
+    const { fit_score, fit_breakdown } = await scoreJob(req.params.id, db);
+
     res.json({
       id: job.id,
-      fit_score: job.fit_score,
-      fit_breakdown: job.fit_breakdown ? JSON.parse(job.fit_breakdown) : null
+      fit_score,
+      fit_breakdown
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
