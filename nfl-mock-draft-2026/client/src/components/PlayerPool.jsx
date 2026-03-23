@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import PlayerDetailModal from './PlayerDetailModal';
 
 const PositionBadge = ({ position }) => {
   const colors = {
@@ -23,21 +24,43 @@ const PositionBadge = ({ position }) => {
   );
 };
 
-const ProspectCard = ({ prospect, onSelect, isUserTurn, teamNeeds = [] }) => {
+const ProspectCard = ({ prospect, onSelect, isUserTurn, teamNeeds = [], onViewDetails }) => {
   const matchesNeed = teamNeeds.includes(prospect.position);
   const positionPriority = teamNeeds.indexOf(prospect.position) + 1;
 
+  const handleClick = (e) => {
+    // If clicking the card itself and it's user's turn, make the pick
+    // But also allow clicking anywhere to view details
+    if (isUserTurn) {
+      onSelect(prospect);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (isUserTurn) {
+        onSelect(prospect);
+      }
+    }
+  };
+
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={`
         p-3 rounded-lg border transition-all duration-200 cursor-pointer
         ${isUserTurn
-          ? 'hover:bg-slate-700/50 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/10'
+          ? 'hover:bg-slate-700/50 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-800'
           : 'opacity-50 cursor-not-allowed'
         }
         ${matchesNeed ? 'border-green-500/30 bg-green-500/5' : 'border-slate-700 bg-slate-800/50'}
       `}
-      onClick={() => isUserTurn && onSelect(prospect)}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      onDoubleClick={() => onViewDetails && onViewDetails(prospect)}
+      title="Double-click to view player details"
     >
       <div className="flex items-start justify-between mb-2">
         <div>
@@ -77,6 +100,7 @@ const PlayerPool = ({ prospects, onSelectProspect, isUserTurn, userTeamNeeds = [
   const [sortBy, setSortBy] = useState('grade');
   const [positionFilter, setPositionFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProspect, setSelectedProspect] = useState(null);
 
   const filteredAndSortedProspects = useMemo(() => {
     let result = [...prospects];
@@ -109,11 +133,11 @@ const PlayerPool = ({ prospects, onSelectProspect, isUserTurn, userTeamNeeds = [
   const positions = ['all', 'QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C', 'DL', 'EDGE', 'LB', 'CB', 'S'];
 
   return (
-    <div className="card h-full flex flex-col">
+    <div className="card h-full flex flex-col bg-[#1e293b] border-slate-700">
       <div className="px-4 py-3 border-b border-slate-700">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-white">Player Pool</h2>
-          <span className="text-sm text-gray-400">{filteredAndSortedProspects.length} available</span>
+          <h2 className="text-lg font-semibold text-white font-['Oswald']">Player Pool</h2>
+          <span className="text-sm text-slate-400">{filteredAndSortedProspects.length} available</span>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-3">
@@ -164,10 +188,19 @@ const PlayerPool = ({ prospects, onSelectProspect, isUserTurn, userTeamNeeds = [
               onSelect={onSelectProspect}
               isUserTurn={isUserTurn}
               teamNeeds={userTeamNeeds}
+              onViewDetails={setSelectedProspect}
             />
           ))
         )}
       </div>
+
+      <PlayerDetailModal
+        prospect={selectedProspect}
+        isOpen={!!selectedProspect}
+        onClose={() => setSelectedProspect(null)}
+        onDraft={onSelectProspect}
+        isUserTurn={isUserTurn}
+      />
     </div>
   );
 };

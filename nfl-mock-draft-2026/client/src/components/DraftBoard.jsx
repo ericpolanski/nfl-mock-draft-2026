@@ -1,21 +1,45 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { teams } from '../data';
 
-const PickRow = ({ pick, isActive, userTeamId, isNew }) => {
+const PickRow = ({ pick, isActive, userTeamId, isNew, onPickClick }) => {
   const team = pick.teamId ? teams.find(t => t.id === pick.teamId) : null;
   const isUserPick = pick.teamId === userTeamId;
   const rowRef = useRef(null);
 
+  const handleClick = () => {
+    if (pick.prospect && onPickClick) {
+      onPickClick(pick.prospect);
+    }
+  };
+
+  const pickVariants = {
+    hidden: { opacity: 0, x: -20 },
+    visible: {
+      opacity: 1,
+      x: 0,
+      transition: { duration: 0.3, ease: 'easeOut' }
+    },
+    highlight: {
+      backgroundColor: ['rgba(6, 182, 212, 0)', 'rgba(6, 182, 212, 0.2)', 'rgba(6, 182, 212, 0)'],
+      transition: { duration: 0.5 }
+    }
+  };
+
   return (
-    <div
+    <motion.div
       ref={rowRef}
+      variants={pickVariants}
+      initial="hidden"
+      animate={isNew ? ['visible', 'highlight'] : 'visible'}
       className={`
-        flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200
+        flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer
         ${isActive ? 'bg-cyan-500/20 border border-cyan-500 pick-active' : 'hover:bg-slate-700/50'}
         ${isUserPick ? 'ring-2 ring-yellow-500/50' : ''}
-        ${isNew ? 'animate-pick-slide-in' : ''}
+        ${pick.prospect ? 'hover:ring-2 hover:ring-cyan-400/50' : ''}
       `}
       id={isActive ? 'active-pick' : undefined}
+      onClick={handleClick}
     >
       <div className="flex-shrink-0 w-16 text-center">
         <span className="text-sm font-semibold text-slate-300 font-['Oswald']">
@@ -55,11 +79,11 @@ const PickRow = ({ pick, isActive, userTeamId, isNew }) => {
           </span>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 
-const DraftBoard = ({ picks, currentPick, userTeamId, onPickClick }) => {
+const DraftBoard = ({ picks, currentPick, userTeamId, onPickClick = () => {} }) => {
   const containerRef = useRef(null);
   const [activeRound, setActiveRound] = useState(1);
   const [newPickId, setNewPickId] = useState(null);
@@ -113,7 +137,7 @@ const DraftBoard = ({ picks, currentPick, userTeamId, onPickClick }) => {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-lg font-semibold text-white font-['Oswald']">Draft Board</h2>
-            <p className="text-sm text-slate-400">7 Rounds • 224 Picks</p>
+            <p className="text-sm text-slate-400">7 Rounds • 257 Picks</p>
           </div>
         </div>
 
@@ -168,6 +192,7 @@ const DraftBoard = ({ picks, currentPick, userTeamId, onPickClick }) => {
                 isActive={pick.position === currentPick}
                 userTeamId={userTeamId}
                 isNew={pick.position === newPickId}
+                onPickClick={onPickClick}
               />
             ))}
 

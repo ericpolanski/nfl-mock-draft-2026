@@ -8,3 +8,4 @@ export { default as TradeModal } from './TradeModal';
 export { default as DraftRecap } from './DraftRecap';
 export { default as DraftTicker } from './DraftTicker';
 export { default as PlayerCard } from './PlayerCard';
+export { default as PlayerDetailModal } from './PlayerDetailModal';

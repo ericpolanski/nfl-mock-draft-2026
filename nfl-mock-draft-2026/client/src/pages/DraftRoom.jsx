@@ -10,6 +10,7 @@ import {
   TradeModal,
   DraftRecap,
   DraftTicker,
+  PlayerDetailModal,
 } from '../components';
 import { useDraft } from '../hooks/useDraft';
 import { teams, getPickAtPosition } from '../data';
@@ -21,6 +22,7 @@ const DraftRoom = () => {
 
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [showRecap, setShowRecap] = useState(false);
+  const [selectedProspect, setSelectedProspect] = useState(null);
 
   const {
     picks,
@@ -37,6 +39,11 @@ const DraftRoom = () => {
     startDraft,
     makePick,
     simulatePicks,
+    animateDraft,
+    skipAnimation,
+    setAnimationSpeed,
+    isAnimating,
+    animationSpeed,
     resetDraft,
   } = useDraft(teamId);
 
@@ -69,11 +76,28 @@ const DraftRoom = () => {
 
   // Handle simulate forward
   const handleSimForward = async () => {
-    if (isUserTurn) return;
+    if (isUserTurn || isAnimating) return;
 
-    // Sim until user's next pick or end of draft
+    // Calculate how many picks to simulate until user's turn or end of draft
     let picksToSim = 10;
-    for (let i = 0; i < 10 && currentPick + i < 224; i++) {
+    for (let i = 0; i < 10 && currentPick + i < 257; i++) {
+      const pickData = getPickAtPosition(currentPick + i);
+      if (pickData?.teamId === teamId) {
+        picksToSim = i;
+        break;
+      }
+    }
+
+    // Use animated simulation by default
+    await animateDraft(picksToSim);
+  };
+
+  // Handle instant simulate (skip animation)
+  const handleSimInstant = async () => {
+    if (isUserTurn || isAnimating) return;
+
+    let picksToSim = 10;
+    for (let i = 0; i < 10 && currentPick + i < 257; i++) {
       const pickData = getPickAtPosition(currentPick + i);
       if (pickData?.teamId === teamId) {
         picksToSim = i;
@@ -82,6 +106,16 @@ const DraftRoom = () => {
     }
 
     await simulatePicks(picksToSim);
+  };
+
+  // Handle skip animation
+  const handleSkipAnimation = () => {
+    skipAnimation();
+  };
+
+  // Handle speed change
+  const handleSpeedChange = (speed) => {
+    setAnimationSpeed(speed);
   };
 
   // Handle trade proposal
@@ -94,6 +128,11 @@ const DraftRoom = () => {
     if (window.confirm('Are you sure you want to reset the draft?')) {
       resetDraft();
     }
+  };
+
+  // Handle player click in draft board
+  const handlePlayerClick = (prospect) => {
+    setSelectedProspect(prospect);
   };
 
   // Show recap when draft is complete
@@ -139,7 +178,7 @@ const DraftRoom = () => {
 
           <div className="flex items-center gap-4">
             <div className="text-sm text-slate-400">
-              Pick {currentPick} of 224
+              Pick {currentPick} of 257
             </div>
             {isComplete && (
               <button
@@ -212,6 +251,10 @@ const DraftRoom = () => {
               onReset={handleReset}
               loading={loading}
               picks={picks}
+              isAnimating={isAnimating}
+              onSkipAnimation={handleSkipAnimation}
+              animationSpeed={animationSpeed}
+              onSpeedChange={handleSpeedChange}
             />
 
             {/* User Team Needs */}
@@ -243,6 +286,7 @@ const DraftRoom = () => {
               picks={picks}
               currentPick={currentPick}
               userTeamId={teamId}
+              onPickClick={handlePlayerClick}
             />
           </div>
 
@@ -291,6 +335,14 @@ const DraftRoom = () => {
           onClose={() => setShowRecap(false)}
         />
       )}
+
+      <PlayerDetailModal
+        prospect={selectedProspect}
+        isOpen={!!selectedProspect}
+        onClose={() => setSelectedProspect(null)}
+        onDraft={handleMakePick}
+        isUserTurn={isUserTurn}
+      />
     </div>
   );
 };
