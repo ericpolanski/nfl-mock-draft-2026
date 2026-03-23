@@ -70,6 +70,31 @@ function hashUrl(url) {
   return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 
+function decodeHtmlEntities(text) {
+  const entities = {
+    '&nbsp;': ' ', '&nbsp': ' ', '&#160;': ' ', '&#xA0;': ' ', '\u00A0': ' ',
+    '&amp;': '&', '&#38;': '&',
+    '&lt;': '<', '&#60;': '<', '&#x3C;': '<',
+    '&gt;': '>', '&#62;': '>', '&#x3E;': '>',
+    '&quot;': '"', '&#34;': '"', '&#x22;': '"',
+    '&apos;': "'", '&#39;': "'", '&#x27;': "'",
+    '&mdash;': '\u2014', '&#8211;': '\u2013', '&ndash;': '\u2013',
+    '&lsquo;': '\u2018', '&rsquo;': '\u2019', '&ldquo;': '\u201C', '&rdquo;': '\u201D',
+    '&hellip;': '\u2026', '&#8230;': '\u2026',
+    '&copy;': '\u00A9', '&reg;': '\u00AE', '&trade;': '\u2122',
+    '&deg;': '\u00B0', '&plusmn;': '\u00B1', '&times;': '\u00D7', '&divide;': '\u00F7',
+    '&cent;': '\u00A2', '&pound;': '\u00A3', '&euro;': '\u20AC', '&yen;': '\u00A5',
+  };
+  // First handle numeric/hex entities
+  let result = text.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  // Then handle named entities (case-insensitive)
+  for (const [entity, char] of Object.entries(entities)) {
+    result = result.replace(new RegExp(entity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), char);
+  }
+  return result;
+}
+
 function parseSalary(text) {
   if (!text) return { min: null, max: null, text: null };
   // Handle "$120K - $180K", "$80,000 - $120,000", "120000", etc.
@@ -111,6 +136,34 @@ function jobMatchesTarget(job) {
   // Title should match target roles
   const roleMatch = ROLES.some(r => title.includes(r.toLowerCase()));
   return roleMatch;
+}
+
+function stripHtmlWithNewlines(html) {
+  if (!html) return '';
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+    .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\/(p|div|h[1-6]|li|tr|article|section)>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 // ─── LinkedIn Scraper ───────────────────────────────────────────────────────
