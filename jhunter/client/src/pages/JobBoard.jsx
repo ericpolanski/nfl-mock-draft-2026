@@ -15,7 +15,7 @@ export default function JobBoard() {
     location: '',
     sort: 'date_desc',
   });
-  const [pagination, setPagination] = useState({ limit: 20, offset: 0 });
+  const [pagination, setPagination] = useState({ limit: 500, offset: 0 });
 
   useEffect(() => {
     loadJobs();
