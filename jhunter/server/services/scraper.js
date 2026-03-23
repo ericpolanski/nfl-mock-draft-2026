@@ -171,63 +171,74 @@ async function scrapeLinkedIn() {
   const jobs = [];
 
   for (const role of ROLES) {
+    // Search 1: Chicago/Illinois area
     const query = encodeURIComponent(`${role} entry level`);
-    const url = `https://www.linkedin.com/jobs/search/?keywords=${query}&location=Chicago%2C%20IL&f_E=2&f_TPR=r604800&locationId=`;
+    const chicagoUrl = `https://www.linkedin.com/jobs/search/?keywords=${query}&location=Chicago%2C%20IL&f_E=2&f_TPR=r604800&locationId=`;
 
-    try {
-      const result = await scrapflyScrape(url, { rendering_wait: 5000 });
+    // Search 2: Remote jobs (nationwide)
+    const remoteUrl = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(role)}&location=United%20States&f_WT=2&f_TPR=r604800`;
 
-      const extracted = await scrapflyExtract(
-        result.result.content,
-        url,
-        `Extract all job listings from this LinkedIn search results page. For each job return a JSON array with: title, company_name, location, source_url (the job detail link), posted_date (as YYYY-MM-DD or relative like "2 days ago"), salary_text (if visible). Return ONLY valid JSON array.`
-      );
+    const urls = [
+      { url: chicagoUrl, defaultLoc: 'Chicago, IL' },
+      { url: remoteUrl, defaultLoc: 'Remote, USA' }
+    ];
 
-      let listings = [];
+    for (const { url, defaultLoc } of urls) {
       try {
-        // extraction API returns data directly as array, not as extracted_content property
-        listings = Array.isArray(extracted.data) ? extracted.data : JSON.parse(extracted.data?.extracted_content || '[]');
-      } catch {
-        // Fallback: try to extract from markdown
-        const markdown = extracted.data?.extracted_content || '';
-        // Try common patterns
-        const lines = markdown.split('\n').filter(l => l.trim());
-        for (const line of lines) {
-          const titleMatch = line.match(/\[([^\]]+)\]/);
-          const companyMatch = line.match(/at\s+([^(]+)/);
-          if (titleMatch) {
-            listings.push({
-              title: titleMatch[1],
-              company_name: companyMatch ? companyMatch[1].trim() : 'Unknown',
-              location: 'Chicago, IL',
-              source_url: '',
-              posted_date: null,
-              salary_text: null
-            });
+        const result = await scrapflyScrape(url, { rendering_wait: 5000 });
+
+        const extracted = await scrapflyExtract(
+          result.result.content,
+          url,
+          `Extract all job listings from this LinkedIn search results page. For each job return a JSON array with: title, company_name, location, source_url (the job detail link), posted_date (as YYYY-MM-DD or relative like "2 days ago"), salary_text (if visible). Return ONLY valid JSON array.`
+        );
+
+        let listings = [];
+        try {
+          // extraction API returns data directly as array, not as extracted_content property
+          listings = Array.isArray(extracted.data) ? extracted.data : JSON.parse(extracted.data?.extracted_content || '[]');
+        } catch {
+          // Fallback: try to extract from markdown
+          const markdown = extracted.data?.extracted_content || '';
+          // Try common patterns
+          const lines = markdown.split('\n').filter(l => l.trim());
+          for (const line of lines) {
+            const titleMatch = line.match(/\[([^\]]+)\]/);
+            const companyMatch = line.match(/at\s+([^(]+)/);
+            if (titleMatch) {
+              listings.push({
+                title: titleMatch[1],
+                company_name: companyMatch ? companyMatch[1].trim() : 'Unknown',
+                location: 'Remote',
+                source_url: '',
+                posted_date: null,
+                salary_text: null
+              });
+            }
           }
         }
+
+        for (const job of listings) {
+          if (!job.source_url || job.source_url === '#') continue;
+          jobs.push({
+            source: 'linkedin',
+            source_url: job.source_url,
+            title: job.title,
+            company_name: job.company_name,
+            location: job.location ? decodeHtmlEntities(job.location) : defaultLoc,
+            salary_text: job.salary_text,
+            posted_date: job.posted_date,
+            description: '',
+            requirements: '[]'
+          });
+        }
+      } catch (e) {
+        console.error(`LinkedIn scrape error for ${role} (${defaultLoc}):`, e.message);
       }
 
-      for (const job of listings) {
-        if (!job.source_url || job.source_url === '#') continue;
-        jobs.push({
-          source: 'linkedin',
-          source_url: job.source_url,
-          title: job.title,
-          company_name: job.company_name,
-          location: job.location ? decodeHtmlEntities(job.location) : 'Chicago, IL',
-          salary_text: job.salary_text,
-          posted_date: job.posted_date,
-          description: '',
-          requirements: '[]'
-        });
-      }
-    } catch (e) {
-      console.error(`LinkedIn scrape error for ${role}:`, e.message);
+      // Rate limit between requests
+      await new Promise(r => setTimeout(r, 2000));
     }
-
-    // Rate limit between requests
-    await new Promise(r => setTimeout(r, 2000));
   }
 
   return jobs;
@@ -240,68 +251,80 @@ async function scrapeIndeed() {
 
   for (const role of ROLES) {
     const query = encodeURIComponent(role);
+
+    // Search 1: Gurnee, IL area (Chicagoland)
     const location = encodeURIComponent('Gurnee, IL');
-    const url = `https://www.indeed.com/jobs?q=${query}&l=${location}&radius=30&fromage=3&sort=date`;
+    const chicagoUrl = `https://www.indeed.com/jobs?q=${query}&l=${location}&radius=30&fromage=3&sort=date`;
 
-    try {
-      const result = await scrapflyScrape(url, { rendering_wait: 4000 });
+    // Search 2: Remote jobs
+    const remoteUrl = `https://www.indeed.com/jobs?q=${query}&l=remote&fromage=3&sort=date`;
 
-      const extracted = await scrapflyExtract(
-        result.result.content,
-        url,
-        `Extract all job listings from this Indeed search results page. For each job return a JSON array with: title, company_name, location, source_url (the complete indeed job URL), posted_date (as YYYY-MM-DD or relative like "3 days ago"), salary_text (if visible). Return ONLY valid JSON array.`
-      );
+    const urls = [
+      { url: chicagoUrl, defaultLoc: 'Gurnee, IL' },
+      { url: remoteUrl, defaultLoc: 'Remote' }
+    ];
 
-      let listings = [];
+    for (const { url, defaultLoc } of urls) {
       try {
-        // extraction API returns data directly as array
-        listings = Array.isArray(extracted.data) ? extracted.data : JSON.parse(extracted.data?.extracted_content || '[]');
-      } catch {
-        // Try HTML parsing from result if extraction fails
-        const html = result.result.content;
-        // Simple regex-based fallback for job cards
-        const cardRegex = /<a[^>]+href="(\/rc\/clk\?[^"]+)"[^>]*>.*?<女星[^>]*>([^<]+)<\/span>.*?<div[^>]*class="[^"]*company[^"]*"[^>]*>([^<]+)<\/div>/gs;
-        let match;
-        while ((match = cardRegex.exec(html)) !== null && listings.length < 30) {
-          const href = match[1];
-          const title = match[2]?.trim();
-          const company = match[3]?.trim();
-          if (title && company) {
-            listings.push({
-              title,
-              company_name: company,
-              location: 'Gurnee, IL (30mi)',
-              source_url: href.startsWith('http') ? href : `https://www.indeed.com${href}`,
-              posted_date: null,
-              salary_text: null
-            });
+        const result = await scrapflyScrape(url, { rendering_wait: 4000 });
+
+        const extracted = await scrapflyExtract(
+          result.result.content,
+          url,
+          `Extract all job listings from this Indeed search results page. For each job return a JSON array with: title, company_name, location, source_url (the complete indeed job URL), posted_date (as YYYY-MM-DD or relative like "3 days ago"), salary_text (if visible). Return ONLY valid JSON array.`
+        );
+
+        let listings = [];
+        try {
+          // extraction API returns data directly as array
+          listings = Array.isArray(extracted.data) ? extracted.data : JSON.parse(extracted.data?.extracted_content || '[]');
+        } catch {
+          // Try HTML parsing from result if extraction fails
+          const html = result.result.content;
+          // Simple regex-based fallback for job cards
+          const cardRegex = /<a[^>]+href="(\/rc\/clk\?[^"]+)"[^>]*>.*?<女星[^>]*>([^<]+)<\/span>.*?<div[^>]*class="[^"]*company[^"]*"[^>]*>([^<]+)<\/div>/gs;
+          let match;
+          while ((match = cardRegex.exec(html)) !== null && listings.length < 30) {
+            const href = match[1];
+            const title = match[2]?.trim();
+            const company = match[3]?.trim();
+            if (title && company) {
+              listings.push({
+                title,
+                company_name: company,
+                location: 'Remote',
+                source_url: href.startsWith('http') ? href : `https://www.indeed.com${href}`,
+                posted_date: null,
+                salary_text: null
+              });
+            }
           }
         }
+
+        for (const job of listings) {
+          if (!job.source_url) continue;
+          const fullUrl = job.source_url.startsWith('http')
+            ? job.source_url
+            : `https://www.indeed.com${job.source_url}`;
+
+          jobs.push({
+            source: 'indeed',
+            source_url: fullUrl,
+            title: job.title,
+            company_name: job.company_name,
+            location: job.location ? decodeHtmlEntities(job.location) : defaultLoc,
+            salary_text: job.salary_text,
+            posted_date: job.posted_date,
+            description: '',
+            requirements: '[]'
+          });
+        }
+      } catch (e) {
+        console.error(`Indeed scrape error for ${role}:`, e.message);
       }
 
-      for (const job of listings) {
-        if (!job.source_url) continue;
-        const fullUrl = job.source_url.startsWith('http')
-          ? job.source_url
-          : `https://www.indeed.com${job.source_url}`;
-
-        jobs.push({
-          source: 'indeed',
-          source_url: fullUrl,
-          title: job.title,
-          company_name: job.company_name,
-          location: job.location ? decodeHtmlEntities(job.location) : 'Gurnee, IL',
-          salary_text: job.salary_text,
-          posted_date: job.posted_date,
-          description: '',
-          requirements: '[]'
-        });
-      }
-    } catch (e) {
-      console.error(`Indeed scrape error for ${role}:`, e.message);
+      await new Promise(r => setTimeout(r, 2000));
     }
-
-    await new Promise(r => setTimeout(r, 2000));
   }
 
   return jobs;
@@ -314,48 +337,60 @@ async function scrapeGlassdoor() {
 
   for (const role of ROLES) {
     const query = encodeURIComponent(role);
-    const url = `https://www.glassdoor.com/Job/chicago-${query}-jobs-SRCH_IL.0_7.htm`;
 
-    try {
-      const result = await scrapflyScrape(url, { rendering_wait: 5000 });
+    // Search 1: Chicago area
+    const chicagoUrl = `https://www.glassdoor.com/Job/chicago-${query}-jobs-SRCH_IL.0_7.htm`;
 
-      const extracted = await scrapflyExtract(
-        result.result.content,
-        url,
-        `Extract all job listings from this Glassdoor search results page. For each job return a JSON array with: title, company_name, location, source_url (the job detail URL), posted_date, salary_text. Return ONLY valid JSON array.`
-      );
+    // Search 2: Remote jobs (using "Remote" in search)
+    const remoteUrl = `https://www.glassdoor.com/Job/remote-${query}-jobs-SRCH_IL.0_7.htm`;
 
-      let listings = [];
+    const urls = [
+      { url: chicagoUrl, defaultLoc: 'Chicago, IL' },
+      { url: remoteUrl, defaultLoc: 'Remote' }
+    ];
+
+    for (const { url, defaultLoc } of urls) {
       try {
-        // extraction API returns data directly as array
-        listings = Array.isArray(extracted.data) ? extracted.data : JSON.parse(extracted.data?.extracted_content || '[]');
-      } catch {
-        // Fallback
+        const result = await scrapflyScrape(url, { rendering_wait: 5000 });
+
+        const extracted = await scrapflyExtract(
+          result.result.content,
+          url,
+          `Extract all job listings from this Glassdoor search results page. For each job return a JSON array with: title, company_name, location, source_url (the job detail URL), posted_date, salary_text. Return ONLY valid JSON array.`
+        );
+
+        let listings = [];
+        try {
+          // extraction API returns data directly as array
+          listings = Array.isArray(extracted.data) ? extracted.data : JSON.parse(extracted.data?.extracted_content || '[]');
+        } catch {
+          // Fallback
+        }
+
+        for (const job of listings) {
+          if (!job.source_url) continue;
+          const fullUrl = job.source_url.startsWith('http')
+            ? job.source_url
+            : `https://www.glassdoor.com${job.source_url}`;
+
+          jobs.push({
+            source: 'glassdoor',
+            source_url: fullUrl,
+            title: job.title,
+            company_name: job.company_name,
+            location: job.location ? decodeHtmlEntities(job.location) : defaultLoc,
+            salary_text: job.salary_text,
+            posted_date: job.posted_date,
+            description: '',
+            requirements: '[]'
+          });
+        }
+      } catch (e) {
+        console.error(`Glassdoor scrape error for ${role}:`, e.message);
       }
 
-      for (const job of listings) {
-        if (!job.source_url) continue;
-        const fullUrl = job.source_url.startsWith('http')
-          ? job.source_url
-          : `https://www.glassdoor.com${job.source_url}`;
-
-        jobs.push({
-          source: 'glassdoor',
-          source_url: fullUrl,
-          title: job.title,
-          company_name: job.company_name,
-          location: job.location ? decodeHtmlEntities(job.location) : 'Chicago, IL',
-          salary_text: job.salary_text,
-          posted_date: job.posted_date,
-          description: '',
-          requirements: '[]'
-        });
-      }
-    } catch (e) {
-      console.error(`Glassdoor scrape error for ${role}:`, e.message);
+      await new Promise(r => setTimeout(r, 2000));
     }
-
-    await new Promise(r => setTimeout(r, 2000));
   }
 
   return jobs;
