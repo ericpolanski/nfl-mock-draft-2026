@@ -4,13 +4,14 @@ const API_BASE_URL = process.env.ANTHROPIC_BASE_URL || 'https://api.minimax.io/a
 const API_KEY = process.env.ANTHROPIC_AUTH_TOKEN;
 
 export async function callLLM(messages, options = {}) {
-  const { model = 'MiniMax-M2.5', maxTokens = 4096, temperature = 0.7 } = options;
+  const { model = 'MiniMax-M2.7', maxTokens = 4096, temperature = 0.7 } = options;
 
   const response = await fetch(`${API_BASE_URL}/v1/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
       model,
@@ -26,7 +27,17 @@ export async function callLLM(messages, options = {}) {
   }
 
   const data = await response.json();
-  return data.content[0].text;
+  // MiniMax returns multiple content blocks: thinking (reasoning) first, then text
+  // Always extract from the text block, not the thinking block
+  let textContent = data.content?.find(c => c.type === 'text')?.text || '';
+  if (!textContent) {
+    throw new Error(`LLM returned no text content. Response: ${JSON.stringify(data).slice(0, 200)}`);
+  }
+
+  // Strip markdown code fences if present (LLM often wraps JSON in ```json ... ```)
+  textContent = textContent.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+
+  return textContent;
 }
 
 export async function generateFitScore(profile, jobDescription) {

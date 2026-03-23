@@ -4,3 +4,4 @@ generated/
 client/dist/
 .env
 *.log
+.gstack/
