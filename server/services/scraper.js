@@ -215,7 +215,7 @@ async function scrapeLinkedIn() {
           source_url: job.source_url,
           title: job.title,
           company_name: job.company_name,
-          location: job.location || 'Chicago, IL',
+          location: job.location ? decodeHtmlEntities(job.location) : 'Chicago, IL',
           salary_text: job.salary_text,
           posted_date: job.posted_date,
           description: '',
@@ -289,7 +289,7 @@ async function scrapeIndeed() {
           source_url: fullUrl,
           title: job.title,
           company_name: job.company_name,
-          location: job.location || 'Gurnee, IL',
+          location: job.location ? decodeHtmlEntities(job.location) : 'Gurnee, IL',
           salary_text: job.salary_text,
           posted_date: job.posted_date,
           description: '',
@@ -342,7 +342,7 @@ async function scrapeGlassdoor() {
           source_url: fullUrl,
           title: job.title,
           company_name: job.company_name,
-          location: job.location || 'Chicago, IL',
+          location: job.location ? decodeHtmlEntities(job.location) : 'Chicago, IL',
           salary_text: job.salary_text,
           posted_date: job.posted_date,
           description: '',
@@ -431,7 +431,7 @@ async function scrapeJobDetail(job) {
     }
 
     // Bug 1: Location fallback to description body text
-    let extractedLocation = detail.location || job.location;
+    let extractedLocation = detail.location ? decodeHtmlEntities(detail.location) : (job.location ? decodeHtmlEntities(job.location) : null);
     if (!extractedLocation && description) {
       const bodyLocationMatch = description.match(/(?:based\s+(?:in|near)|location[:]\s*|role\s+is\s+(?:in|near))\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s+\d{5})?)/i);
       if (bodyLocationMatch && bodyLocationMatch[1]) {
