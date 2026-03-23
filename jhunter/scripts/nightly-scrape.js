@@ -15,7 +15,7 @@ const GENERATED_DIR = '/home/eric/ai-company/projects/jhunter/generated';
 
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { mkdirSync } from 'fs';
+import { mkdirSync, appendFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -102,7 +102,7 @@ async function main() {
     console.log(`Reminders created: ${remindersCreated}`);
 
     const logEntry = `[${completedAt}] Scrape complete: ${outcome.jobs_new} new, ${outcome.jobs_scored} scored, ${remindersCreated} reminders\n`;
-    require('fs').appendFileSync(logFile, logEntry);
+    appendFileSync(logFile, logEntry);
 
   } catch (error) {
     console.error(`Scrape run ${runId} failed:`, error.message);
@@ -110,7 +110,7 @@ async function main() {
       UPDATE scrape_runs SET status = 'failed', error_message = ? WHERE id = ?
     `).run(error.message, runId);
 
-    require('fs').appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${error.message}\n`);
+    appendFileSync(logFile, `[${new Date().toISOString()}] ERROR: ${error.message}\n`);
     process.exit(1);
   }
 }
