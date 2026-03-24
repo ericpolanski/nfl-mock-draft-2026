@@ -1,0 +1,4 @@
+/* Header-specific — inherits .site-nav from index.css */
+header {
+  /* no additional styles needed — site-nav is fixed */
+}
