@@ -1,0 +1,62 @@
+[
+  {
+    "company": "Amazon",
+    "career_url": "https://amazon.jobs/en/search/",
+    "ats_type": "custom",
+    "job_url_pattern": "https://amazon.jobs/en/job/"
+  },
+  {
+    "company": "Apple",
+    "career_url": "https://jobs.apple.com/en-us/search",
+    "ats_type": "custom",
+    "job_url_pattern": "https://jobs.apple.com/en-us/details/"
+  },
+  {
+    "company": "Meta",
+    "career_url": "https://www.metacareers.com/jobs",
+    "ats_type": "custom",
+    "job_url_pattern": "https://www.metacareers.com/jobs/"
+  },
+  {
+    "company": "Microsoft",
+    "career_url": "https://careers.microsoft.com/us/en/search-results",
+    "ats_type": "custom",
+    "job_url_pattern": "https://careers.microsoft.com/us/en/job/"
+  },
+  {
+    "company": "Google",
+    "career_url": "https://www.google.com/about/careers/applications/jobs/search",
+    "ats_type": "custom",
+    "job_url_pattern": "https://www.google.com/about/careers/applications/jobs/"
+  },
+  {
+    "company": "Goldman Sachs",
+    "career_url": "https://www.goldmansachs.com/careers.html",
+    "ats_type": "custom",
+    "job_url_pattern": "https://www.goldmansachs.com/careers/jobs/"
+  },
+  {
+    "company": "IBM",
+    "career_url": "https://www.ibm.com/careers/us-en/search",
+    "ats_type": "custom",
+    "job_url_pattern": "https://www.ibm.com/careers/us-en/job/"
+  },
+  {
+    "company": "Intel",
+    "career_url": "https://jobs.intel.com/en-us",
+    "ats_type": "custom",
+    "job_url_pattern": "https://jobs.intel.com/en-us/job/"
+  },
+  {
+    "company": "Walmart",
+    "career_url": "https://careers.walmart.com/",
+    "ats_type": "workday",
+    "job_url_pattern": "https://careers.walmart.com/job/"
+  },
+  {
+    "company": "Ford Motor",
+    "career_url": "https://www.ford.com/careers/",
+    "ats_type": "workday",
+    "job_url_pattern": "https://www.ford.com/careers/job/"
+  }
+]
