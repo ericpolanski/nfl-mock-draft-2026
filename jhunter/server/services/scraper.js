@@ -144,7 +144,6 @@ function runJobSpy(options = {}) {
 // ─── Fortune 100 Scraper ─────────────────────────────────────────────────────
 
 const FORTUNE100_SCRIPT = join(__dirname, 'scraper_fortune100.py');
-const FORTUNE100_COMPANIES_FILE = join(__dirname, '..', '..', 'data', 'fortune100_companies.json');
 
 /**
  * Run the Python Fortune 100 scraper and return parsed jobs.
@@ -164,7 +163,6 @@ function runFortune100Scrape(options = {}) {
   return new Promise((resolve, reject) => {
     const args = [
       FORTUNE100_SCRIPT,
-      '--companies-file', FORTUNE100_COMPANIES_FILE,
       '--roles', roles.join(','),
       '--results-wanted', String(resultsWanted),
     ];
